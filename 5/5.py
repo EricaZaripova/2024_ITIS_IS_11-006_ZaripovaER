@@ -35,9 +35,8 @@ def build_query_vector(query, terms):
 
 
 def vector_search(documents, query_vector):
-    """Find and rank documents based on cosine similarity to the query vector."""
     doc_names = list(documents.keys())
-    # Массив с пока нулевыми векторами для каждого документа
+    # Массив с пока нулевыми векторами для каждого документа (длиной в кол-во различных слов)
     doc_vectors = np.zeros((len(documents), len(query_vector)))
     for i, doc_values in enumerate(documents.values()):
         for j, term in enumerate(terms):

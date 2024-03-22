@@ -9,6 +9,7 @@
 """
 import os
 import math
+import json
 import pandas as pd
 
 
@@ -29,19 +30,32 @@ def compute_idf(documents):
         for term in set(document):
             idf[term] = idf.get(term, 0) + 1
     for term, count in idf.items():
-        idf[term] = math.log(total_documents / count)
+        idf[term] = math.log(total_documents / count, 10)
     return idf
+
+
+# def idf2(total_documents):
+#     file_path = os.path.join('../3', 'inverted_index.json')
+#     with open(file_path, 'r', encoding='utf-8') as json_file:
+#         words = json.load(json_file)
+#     idf = {}
+#     for word, docs in words.items():
+#         idf[word] = math.log(total_documents / len(docs))
+#     return idf
 
 
 def compute_tf_idf(tf, idf):
     tf_idf = {}
+    cur_idf = {}
     for term, value in tf.items():
+        cur_idf[term] = idf.get(term, 0)
         tf_idf[term] = value * idf.get(term, 0)
-    return tf_idf
+    return tf_idf, cur_idf
 
 
 if __name__ == "__main__":
     tokens_dir = '../2/tokens'
+    index_dir = '../3'
     tables_dir = 'tables'
 
     # Формируем словари формата "файл: массив со словами"
@@ -52,13 +66,14 @@ if __name__ == "__main__":
             documents[file_name] = f.read().split()
 
     idf = compute_idf(list(documents.values()))
+    # idf = idf2(len(documents))
 
     for file_name, words in documents.items():
         tf = compute_tf(words)
-        tf_idf = compute_tf_idf(tf, idf)
+        tf_idf, cur_idf = compute_tf_idf(tf, idf)
 
         # Записываем TF, IDF, TF-IDF в табличные файлы
-        df = pd.DataFrame(list(zip(tf.keys(), tf.values(), idf.values(), tf_idf.values())),
+        df = pd.DataFrame(list(zip(tf.keys(), tf.values(), cur_idf.values(), tf_idf.values())),
                           columns=['Term', 'TF', 'IDF', 'TF-IDF'])
         df = df.round(6)
         df.sort_values(by='Term', inplace=True)
