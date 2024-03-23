@@ -59,14 +59,17 @@ def boolean_search(query, inverted_index):
         elif operator == '|':
             result |= resolve_query(component, invert)
 
-        sorted(result)
+    clean_result = []
+    for i in result:
+        el = i[:-4]
+        clean_result.append(int(el[4:]))
+    clean_result = sorted(clean_result)
 
-        clean_result = ''
-        for i in result:
-            el = i[:-4]
-            clean_result += ' ' + el[4:]
+    result = ''
+    for i in clean_result:
+        result += str(i) + ' '
 
-    return clean_result if result else ''
+    return [result] if result else []
 
 
 if __name__ == "__main__":
