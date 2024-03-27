@@ -7,6 +7,7 @@ word1
 word1 word2
 word1 word2 word3
 """
+import csv
 import os
 import numpy as np
 import pandas as pd
@@ -14,57 +15,69 @@ import json
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-# Чтение значений TF-IDF из файла
-def load_document_vectors(tables_dir):
-    documents = {}
-    for file in os.listdir(tables_dir):
-        doc_name = file[:-4]  # убираем '.csv'
-        df = pd.read_csv(os.path.join(tables_dir, file), delimiter=',')
-        documents[doc_name] = df.set_index('Term')['TF-IDF'].to_dict()
+# Выгрузка из файлов idf, tf_idf, списка терминов и номеров документов
+def load_data(tables_dir):
+    idf = {}
+    terms = []
+    with open(os.path.join(tables_dir, 'idf_table.csv'), 'r', newline='', encoding='utf-8') as idf_file:
+        reader = csv.reader(idf_file)
+        for row in reader:
+            if row[0] == 'Term':
+                continue
+            terms.append(row[0])
+            idf[row[0]] = float(row[1])
+    tfidf_df = pd.read_csv(os.path.join(tables_dir, 'tfidf_table.csv'))
+    doc_names = tfidf_df.columns
+    return idf, terms, tfidf_df, doc_names[1:]
+
+
+# Создание TF-IDF векторов для файлов
+def load_document_vectors(tfidf_df, docs_list):
+    documents = []
+    for doc in docs_list:
+        documents.append(tfidf_df[str(doc)].tolist())
     return documents
 
 
-# Вектор запроса
-def build_query_vector(query, terms):
-    # TF для запроса
+def build_query_vector(query, terms, idf):
+    # TF-IDF для запроса
     query_terms = query.lower().split()
-    tf = {term: query_terms.count(term) / len(query_terms) for term in query_terms if term in terms}
+    tf_idf = {term: (query_terms.count(term) / len(query_terms) * idf[term]) for term in query_terms if term in terms}
     # Вектор запроса с TF-IDF значениями
-    query_vector = [tf.get(term, 0) for term in terms]
+    query_vector = [tf_idf.get(term, 0) for term in terms]
     return np.array(query_vector)
 
 
-def vector_search(documents, query_vector):
-    doc_names = list(documents.keys())
-    # Массив с пока нулевыми векторами для каждого документа (длиной в кол-во различных слов)
-    doc_vectors = np.zeros((len(documents), len(query_vector)))
-    for i, doc_values in enumerate(documents.values()):
-        for j, term in enumerate(terms):
-            doc_vectors[i, j] = doc_values.get(term, 0)
-
-    # Вычисляем косинусное сходство
-    similarities = cosine_similarity([query_vector], doc_vectors)[0]
+def vector_search(doc_vect, query_vector, doc_names):
+    # Косинусное сходство
+    similarities = cosine_similarity([query_vector], doc_vect)[0]
     sorted_docs = sorted(zip(doc_names, similarities), key=lambda x: x[1], reverse=True)
     return sorted_docs
 
 
 if __name__ == "__main__":
-    tables_dir = '../4/tables'
-    documents = load_document_vectors(tables_dir)
-    terms = {term for doc in documents.values() for term in doc}  # Получаем список всех терминов
-
+    tables_dir = "../4/tables"
+    results_file = "results.json"
     # Примеры запросов
-    queries = ["википедия", "идентификатор аккаунт", "июль каждый как", "агентство автор аккаунт"]
+    queries = ["абсолютный", "агрессивный", "авиабилет",
+               "абсолютный агрессивный", "абсолютный агрессивный авиабилет"]
+
+    # Загрузка данных
+    idf, terms, tfidf_df, doc_names = load_data(tables_dir)
+
+    docs_vect = load_document_vectors(tfidf_df, doc_names)
 
     # Выполнение поиска
     search_results = {}
     for query in queries:
-        query_vector = build_query_vector(query, terms)
-        results = vector_search(documents, query_vector)
-        docs = {}
+        query_vector = build_query_vector(query, terms, idf)
+        results = vector_search(docs_vect, query_vector, doc_names)
+        docs = ''
         for doc, sim in results:
-            docs[doc] = f"{sim:.5f}"
-        search_results[query] = docs
+            s = round(sim, 5)
+            if s > 0:
+                docs += f"{doc}: {s}, "
+        search_results[query] = [docs]
 
     with open('results.json', 'w', encoding='utf-8') as f:
         json.dump(search_results, f, ensure_ascii=False, indent=4)

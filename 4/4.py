@@ -7,9 +7,9 @@
 
 Полученные параметры сохранить в виде таблиц.
 """
+
 import os
 import math
-import json
 import pandas as pd
 
 
@@ -30,35 +30,22 @@ def compute_idf(documents):
         for term in set(document):
             idf[term] = idf.get(term, 0) + 1
     for term, count in idf.items():
-        idf[term] = math.log(total_documents / count, 10)
+        idf[term] = round(math.log(total_documents / count, 10), 6)
     return idf
-
-
-# def idf2(total_documents):
-#     file_path = os.path.join('../3', 'inverted_index.json')
-#     with open(file_path, 'r', encoding='utf-8') as json_file:
-#         words = json.load(json_file)
-#     idf = {}
-#     for word, docs in words.items():
-#         idf[word] = math.log(total_documents / len(docs))
-#     return idf
 
 
 def compute_tf_idf(tf, idf):
     tf_idf = {}
-    cur_idf = {}
     for term, value in tf.items():
-        cur_idf[term] = idf.get(term, 0)
-        tf_idf[term] = value * idf.get(term, 0)
-    return tf_idf, cur_idf
+        tf_idf[term] = round(value * idf.get(term, 0), 6)
+    return tf_idf
 
 
 if __name__ == "__main__":
     tokens_dir = '../2/tokens'
-    index_dir = '../3'
-    tables_dir = 'tables'
+    tables_dir = './tables'
 
-    # Формируем словари формата "файл: массив со словами"
+    # Словарь "файл: перечень слов"
     documents = {}
     for file_name in os.listdir(tokens_dir):
         file_path = os.path.join(tokens_dir, file_name)
@@ -66,18 +53,33 @@ if __name__ == "__main__":
             documents[file_name] = f.read().split()
 
     idf = compute_idf(list(documents.values()))
-    # idf = idf2(len(documents))
 
+    # Создаем таблицы TF и TF-IDF
+    tf_table = {}
+    tfidf_table = {}
     for file_name, words in documents.items():
         tf = compute_tf(words)
-        tf_idf, cur_idf = compute_tf_idf(tf, idf)
+        tf_idf = compute_tf_idf(tf, idf)
 
-        # Записываем TF, IDF, TF-IDF в табличные файлы
-        df = pd.DataFrame(list(zip(tf.keys(), tf.values(), cur_idf.values(), tf_idf.values())),
-                          columns=['Term', 'TF', 'IDF', 'TF-IDF'])
-        df = df.round(6)
-        df.sort_values(by='Term', inplace=True)
+        tf_table[file_name] = tf
+        tfidf_table[file_name] = tf_idf
 
-        csv_file_name = file_name.replace('.txt', '.csv')
-        csv_path = os.path.join(tables_dir, csv_file_name)
-        df.to_csv(csv_path, index=False, sep=',')
+    # Создаем таблицы pandas
+    tf_df = pd.DataFrame(tf_table).fillna(0).round(6)
+    tf_df.columns = [int(col[4:-4]) for col in tf_df.columns]
+    tf_df = tf_df.reindex(sorted(tf_df.columns), axis=1)
+    tf_df = tf_df.reindex(sorted(tf_df.index))
+
+    tfidf_df = pd.DataFrame(tfidf_table).fillna(0).round(6)
+    tfidf_df.columns = [int(col[4:-4]) for col in tfidf_df.columns]
+    tfidf_df = tfidf_df.reindex(sorted(tfidf_df.columns), axis=1)
+    tfidf_df = tfidf_df.reindex(sorted(tfidf_df.index))
+
+    # Создаем таблицу IDF
+    idf_df = pd.DataFrame(list(idf.items()), columns=['Term', 'IDF'])
+    idf_df = idf_df.sort_values(by='Term')
+
+    # Сохраняем таблицы в CSV
+    idf_df.to_csv(os.path.join(tables_dir, 'idf_table.csv'), index=False)
+    tf_df.to_csv(os.path.join(tables_dir, 'tf_table.csv'))
+    tfidf_df.to_csv(os.path.join(tables_dir, 'tfidf_table.csv'))
